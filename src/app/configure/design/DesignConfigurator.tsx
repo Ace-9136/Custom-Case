@@ -200,8 +200,8 @@ const DesignConfigurator = ({configId, imageUrl, imageDimensions}: DesignConfigu
                     {COLORS.map((color)=>(
                       <Radio key={color.label} 
                       value={color}
-                      className={({ active, checked })=> cn("relative -m-0.5 flex cursor-pointer items-center justify-center rounded-full p-0.5 active:ring-0 focus:ring-0 active:outline-none focus:outline-none border-2 border-transparent", {
-                        [`border-${color.tw}`]: active ||checked,
+                      className={({ checked })=> cn("relative -m-0.5 flex cursor-pointer items-center justify-center rounded-full p-0.5 active:ring-0 focus:ring-0 active:outline-none focus:outline-none border-2 border-transparent", {
+                        [`border-${color.tw}`]: checked,
                       })}
                       >
                         <span className={cn(`bg-${color.tw}`, "h-8 w-8 rounded-full border border-black border-opacity-10")}></span>
