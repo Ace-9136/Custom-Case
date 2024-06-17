@@ -61,31 +61,33 @@ export const createCheckoutSession = async ({
     }
 
     const create_payment_json = {
-    "intent": "sale",
-    "payer": {
-        "payment_method": "paypal"
+  "intent": "sale",
+  "payer": {
+    "payment_method": "paypal"
+  },
+  "redirect_urls": {
+    "return_url": `${process.env.NEXT_PUBLIC_SERVER_URL}/thank-you?orderId=${order.id}`,
+    "cancel_url": `${process.env.NEXT_PUBLIC_SERVER_URL}/configure/preview?id=${configuration.id}`
+  },
+  "transactions": [{
+    "invoice_number": order.id, // Add this line
+    "item_list": {
+      "items": [{
+        "name": "Custom Case",
+        "sku": "item",
+        "price": `${price / 100}`,
+        "currency": "USD",
+        "quantity": 1
+      }]
     },
-    "redirect_urls": {
-        "return_url": `${process.env.NEXT_PUBLIC_SERVER_URL}/thank-you?orderId=${order.id}`,
-        "cancel_url": `${process.env.NEXT_PUBLIC_SERVER_URL}/configure/preview?id=${configuration.id}`
+    "amount": {
+      "currency": "USD",
+      "total": `${price / 100}`
     },
-    "transactions": [{
-        "item_list": {
-            "items": [{
-                "name": "Custom Case",
-                "sku": "item",
-                "price": `${price/100}`,
-                "currency": "USD",
-                "quantity": 1
-            }]
-        },
-        "amount": {
-            "currency": "USD",
-            "total": `${price/100}`
-        },
-        "description": "This is the payment description."
-    }]
+    "description": "This is the payment description."
+  }]
 };
+
 
 
     try {

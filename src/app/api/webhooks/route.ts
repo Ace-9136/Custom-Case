@@ -1,139 +1,123 @@
-import { db } from '@/db';
-import { headers } from 'next/headers';
-import { NextResponse } from 'next/server';
-import fetch from 'node-fetch';
-import { Order } from '@prisma/client';
+import { db } from "@/db"
+import { NextApiRequest, NextApiResponse } from "next"
+import paypal from "@/lib/paypal"
 
-// Define interfaces for the response data
-interface PayPalAccessTokenResponse {
-    access_token: string;
+// Define the types
+interface WebhookEvent {
+  id: string;
+  event_version: string;
+  create_time: string;
+  resource_type: string;
+  event_type: string;
+  summary: string;
+  resource: any; // Define more specific type if known
+  status: string;
+  links: {
+    href: string;
+    rel: string;
+    method: string;
+  }[];
 }
 
-interface PayPalVerificationResponse {
-    verification_status: string;
+interface WebhookVerifyResponse {
+  verification_status: string;
 }
 
-// PayPal credentials
-const clientId = process.env.PAYPAL_CLIENT_ID || '';
-const clientSecret = process.env.PAYPAL_CLIENT_SECRET || '';
-const webhookId = process.env.PAYPAL_WEBHOOK_ID || '';
+async function verifyWebhook(req: NextApiRequest, res: NextApiResponse): Promise<boolean> {
+  const transmissionId = req.headers['paypal-transmission-id'] as string;
+  const transmissionTime = req.headers['paypal-transmission-time'] as string;
+  const certUrl = req.headers['paypal-cert-url'] as string;
+  const authAlgo = req.headers['paypal-auth-algo'] as string;
+  const transmissionSig = req.headers['paypal-transmission-sig'] as string;
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID as string;
+  const webhookEvent: WebhookEvent = req.body;
 
-// Function to get PayPal access token
-async function getPayPalAccessToken(): Promise<string> {
-    const response = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: 'grant_type=client_credentials'
-    });
+  const headers = {
+    transmission_id: transmissionId,
+    transmission_time: transmissionTime,
+    cert_url: certUrl,
+    auth_algo: authAlgo,
+    transmission_sig: transmissionSig
+  };
 
-    const data = await response.json() as PayPalAccessTokenResponse;
-    return data.access_token;
+  const response: WebhookVerifyResponse = await new Promise((resolve, reject) => {
+    paypal.notification.webhookEvent.verify(
+      headers,
+      webhookEvent,
+      webhookId,
+      (error, response) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(response);
+        }
+      }
+    );
+  });
+
+  return response.verification_status === 'SUCCESS';
 }
 
-// Function to verify webhook signature
-async function verifyWebhookSignature(headers: Headers, body: string): Promise<boolean> {
-    const accessToken = await getPayPalAccessToken();
-    const requestBody = {
-        transmission_id: headers.get('PAYPAL-TRANSMISSION-ID'),
-        transmission_time: headers.get('PAYPAL-TRANSMISSION-TIME'),
-        cert_url: headers.get('PAYPAL-CERT-URL'),
-        auth_algo: headers.get('PAYPAL-AUTH-ALGO'),
-        transmission_sig: headers.get('PAYPAL-TRANSMISSION-SIG'),
-        webhook_id: webhookId,
-        webhook_event: JSON.parse(body)
-    };
-
-    const response = await fetch('https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(requestBody)
-    });
-
-    const data = await response.json() as PayPalVerificationResponse;
-    return data.verification_status === 'SUCCESS';
-}
-
-export async function POST(req: Request) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "POST") {
     try {
-        const body = await req.text();
-        const signatureValid = await verifyWebhookSignature(headers(), body);
+      const isValid = await verifyWebhook(req, res);
 
-        if (!signatureValid) {
-            return new Response('Invalid signature', { status: 400 });
-        }
+      if (!isValid) {
+        return res.status(400).send("Invalid webhook");
+      }
 
-        const event = JSON.parse(body);
+      const event = req.body;
 
-        if (event.event_type === 'CHECKOUT.ORDER.APPROVED') {
-            const order = event.resource;
-            const { userId, orderId } = order.purchase_units[0].custom_id ? JSON.parse(order.purchase_units[0].custom_id) : { userId: null, orderId: null };
+      if (event.event_type === "PAYMENT.SALE.COMPLETED") {
+        const orderId = event.resource.invoice_number;
+        const shippingAddress = event.resource.shipping_address;
+        const billingAddress = event.resource.billing_address;
 
-            if (!userId || !orderId) {
-                throw new Error('Invalid request metadata');
-            }
-
-            const billingAddress = order.payer.address;
-            const shippingAddress = order.purchase_units[0].shipping.address;
-
-            const updatedOrder = await db.order.update({
-                where: { id: orderId },
-                data: {
-                    isPaid: true,
-                    shippingAddress: {
-                        create: {
-                            name: `${order.payer.name.given_name} ${order.payer.name.surname}`,
-                            city: shippingAddress.city,
-                            country: shippingAddress.country_code,
-                            postalCode: shippingAddress.postal_code,
-                            street: shippingAddress.address_line_1,
-                            state: shippingAddress.admin_area_1,
-                        },
-                    },
-                    billingAddress: {
-                        create: {
-                            name: `${order.payer.name.given_name} ${order.payer.name.surname}`,
-                            city: billingAddress.city,
-                            country: billingAddress.country_code,
-                            postalCode: billingAddress.postal_code,
-                            street: billingAddress.address_line_1,
-                            state: billingAddress.admin_area_1,
-                        },
-                    },
+        try {
+          await db.order.update({
+            where: { id: orderId },
+            data: {
+              isPaid: true,
+              shippingAddress: {
+                create: {
+                  name: shippingAddress.recipient_name,
+                  street: shippingAddress.line1,
+                  city: shippingAddress.city,
+                  postalCode: shippingAddress.postal_code,
+                  country: shippingAddress.country_code,
+                  state: shippingAddress.state,
+                  phoneNumber: shippingAddress.phone,
                 },
-            });
-
-            // await resend.emails.send({
-            //   from: 'CaseCobra <hello@joshtriedcoding.com>',
-            //   to: [order.payer.email_address],
-            //   subject: 'Thanks for your order!',
-            //   react: OrderReceivedEmail({
-            //     orderId,
-            //     orderDate: updatedOrder.createdAt.toLocaleDateString(),
-            //     shippingAddress: {
-            //       name: `${order.payer.name.given_name} ${order.payer.name.surname}`,
-            //       city: shippingAddress.city,
-            //       country: shippingAddress.country_code,
-            //       postalCode: shippingAddress.postal_code,
-            //       street: shippingAddress.address_line_1,
-            //       state: shippingAddress.admin_area_1,
-            //     },
-            //   }),
-            // });
+              },
+              billingAddress: {
+                create: {
+                  name: billingAddress.recipient_name,
+                  street: billingAddress.line1,
+                  city: billingAddress.city,
+                  postalCode: billingAddress.postal_code,
+                  country: billingAddress.country_code,
+                  state: billingAddress.state,
+                  phoneNumber: billingAddress.phone,
+                },
+              },
+            },
+          });
+        } catch (error) {
+          console.error("Error updating order:", error);
+          return res.status(500).send("Server error");
         }
 
-        return NextResponse.json({ result: event, ok: true });
-    } catch (err) {
-        console.error(err);
+        return res.status(200).send("Order updated");
+      }
 
-        return NextResponse.json(
-            { message: 'Something went wrong', ok: false },
-            { status: 500 }
-        );
+      res.status(200).send("Event ignored");
+    } catch (error) {
+      console.error("Error handling webhook:", error);
+      return res.status(500).send("Server error");
     }
+  } else {
+    res.setHeader("Allow", ["POST"]);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
 }
