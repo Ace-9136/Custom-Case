@@ -20,7 +20,7 @@ export default function Home() {
                   <h1 className="relative w-fit tracking-tight test-balance mt-16 font-bold !leading-tight text-gray-900 text-5xl md:text-6xl lg:text-7xl"> Your Image on a <span className="bg-green-600 px-2 text-white">Custom</span> Phone Case</h1>
                   <p className="mt-8 test-lg lg:pr-10 max-w-prose text-center lg:text-left text-balance md:text-wrap">
                     Capture your favourite memories with your own, <span className="font-semibold"> one-of-one</span> phone case. 
-                    CaseCobra allows you to protect your memories, not just your phone case.
+                    CustomCase allows you to protect your memories, not just your phone case.
                   </p>
                   <ul className="mt-8 space-y-2 text-left font-medium flex flex-col items-center sm:items-start">
                     <div className="space-y-2">
@@ -91,8 +91,8 @@ export default function Home() {
             <Image
                 src='/your-image.png'
                 className='absolute w-40 lg:w-52 left-56 -top-20 select-none hidden sm:block lg:hidden xl:block'
-                height={100}
-                width={100}
+                height={400}
+                width={600}
                 alt="your Image"
               />
               <Image
@@ -200,7 +200,7 @@ export default function Home() {
                   src='/horse.jpg'
                   alt='Horse'
                   className='rounded-md object-cover bg-white shadow-2xl ring-1 ring-gray-900/10 h-full w-full'
-                  layout="fill" // Fills the container (consider using with caution)
+                  fill
                 />
               </div>
 

@@ -147,12 +147,12 @@ const Reviews = () => {
             <Image
                 src="/what-people-are-buying.png"
                 alt="What people are buying"
-                width={150}
-                height={150}
-                layout="intrinsic"
-                className="absolute select-none hidden xl:block -left-32 top-1/3"
+                width={190}
+                height={140}
+                className="absolute select-none hidden xl:block -left-32 top-1/3 object-cover"
                 priority={true}
-            />
+                />
+
             <ReviewGrid />
         </MaxWidthWrapper>
     );
