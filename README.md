@@ -61,7 +61,9 @@ Create a .env file in the root directory and add the following variables:
 Vercel Link : https://custom-case-phi.vercel.app/
 
 Use following Paypal credentials for demo user flow:
+
 Username : sb-2qxjc31217849@business.example.com
+
 Password: 9N9y/U7[
 
 ## Contributing
